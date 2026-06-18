@@ -1,0 +1,20 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: custom-app-envoy
+  namespace: logging-system
+  labels:
+    prometheus: ppprp
+    monitoring: enabled
+spec:
+  namespaceSelector:
+    matchNames:
+      - logging-system
+  selector:
+    matchLabels:
+      app: custom-app
+      monitoring: enabled
+  podMetricsEndpoints:
+    - port: http-envoy-prom
+      path: /stats/prometheus
+      interval: 15s

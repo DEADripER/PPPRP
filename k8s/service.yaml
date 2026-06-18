@@ -3,6 +3,9 @@ kind: Service
 metadata:
   name: custom-app-service
   namespace: logging-system
+  labels:
+    app: custom-app
+    monitoring: enabled
 spec:
   type: ClusterIP
   selector:

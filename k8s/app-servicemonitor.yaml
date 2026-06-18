@@ -1,0 +1,20 @@
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: custom-app
+  namespace: logging-system
+  labels:
+    prometheus: ppprp
+    monitoring: enabled
+spec:
+  namespaceSelector:
+    matchNames:
+      - logging-system
+  selector:
+    matchLabels:
+      app: custom-app
+      monitoring: enabled
+  endpoints:
+    - port: http
+      path: /metrics
+      interval: 15s

@@ -13,6 +13,7 @@ spec:
     metadata:
       labels:
         app: custom-app
+        monitoring: enabled
     spec:
       containers:
         - name: custom-app

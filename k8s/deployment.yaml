@@ -5,6 +5,7 @@ metadata:
   namespace: logging-system
   labels:
     app: custom-app
+    monitoring: enabled
 spec:
   replicas: 3
   selector:
@@ -14,6 +15,7 @@ spec:
     metadata:
       labels:
         app: custom-app
+        monitoring: enabled
     spec:
       containers:
         - name: custom-app

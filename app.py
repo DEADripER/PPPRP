@@ -2,10 +2,13 @@ import json
 import logging
 import os
 import sys
+import time
+from threading import Lock
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
 
 from flask import Flask, Response, jsonify, request
+from prometheus_client import CONTENT_TYPE_LATEST, Counter, Gauge, Histogram, generate_latest
 
 
 CONFIG_PATH = Path(os.getenv("CONFIG_PATH", "/app/config/config.json"))
@@ -19,6 +22,28 @@ POD_NAME = os.getenv("POD_NAME", os.getenv("HOSTNAME", "unknown-pod"))
 
 app = Flask(__name__)
 logger = logging.getLogger("custom-app")
+
+LOG_REQUESTS_TOTAL = Counter(
+    "custom_app_log_requests_total",
+    "Total number of POST /log calls.",
+)
+LOG_ATTEMPTS_TOTAL = Counter(
+    "custom_app_log_attempts_total",
+    "POST /log logging attempts by result.",
+    ["result"],
+)
+LOG_REQUEST_DURATION_SECONDS = Histogram(
+    "custom_app_log_request_duration_seconds",
+    "Time spent processing POST /log requests.",
+    buckets=(0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10),
+)
+LOG_REQUEST_DURATION_AVERAGE_SECONDS = Gauge(
+    "custom_app_log_request_duration_seconds_average",
+    "Average time spent processing POST /log requests.",
+)
+_duration_lock = Lock()
+_duration_total_seconds = 0.0
+_duration_count = 0
 
 
 def load_config() -> dict:
@@ -81,6 +106,20 @@ def current_logger() -> logging.Logger:
     return setup_logger(load_config())
 
 
+def record_log_metrics(result: str, duration_seconds: float) -> None:
+    global _duration_count, _duration_total_seconds
+
+    LOG_ATTEMPTS_TOTAL.labels(result=result).inc()
+    LOG_REQUEST_DURATION_SECONDS.observe(duration_seconds)
+
+    with _duration_lock:
+        _duration_total_seconds += duration_seconds
+        _duration_count += 1
+        LOG_REQUEST_DURATION_AVERAGE_SECONDS.set(
+            _duration_total_seconds / _duration_count
+        )
+
+
 @app.after_request
 def add_pod_header(response):
     response.headers["X-Pod-Name"] = POD_NAME
@@ -100,16 +139,24 @@ def status():
 
 @app.post("/log")
 def write_log():
-    data = request.get_json(silent=True)
-    if not isinstance(data, dict):
-        return jsonify({"error": "message is required"}), 400
+    started_at = time.perf_counter()
+    result = "failure"
+    LOG_REQUESTS_TOTAL.inc()
 
-    message = str(data.get("message", "")).strip()
-    if not message:
-        return jsonify({"error": "message is required"}), 400
+    try:
+        data = request.get_json(silent=True)
+        if not isinstance(data, dict):
+            return jsonify({"error": "message is required"}), 400
 
-    current_logger().info(message)
-    return jsonify({"result": "logged", "pod": POD_NAME}), 200
+        message = str(data.get("message", "")).strip()
+        if not message:
+            return jsonify({"error": "message is required"}), 400
+
+        current_logger().info(message)
+        result = "success"
+        return jsonify({"result": "logged", "pod": POD_NAME}), 200
+    finally:
+        record_log_metrics(result, time.perf_counter() - started_at)
 
 
 @app.get("/logs")
@@ -123,6 +170,11 @@ def read_logs():
         content = ""
 
     return Response(content, mimetype="text/plain")
+
+
+@app.get("/metrics")
+def metrics():
+    return Response(generate_latest(), content_type=CONTENT_TYPE_LATEST)
 
 
 if __name__ == "__main__":
