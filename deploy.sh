@@ -7,7 +7,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "${SCRIPT_DIR}"
 
 if ! command -v istioctl >/dev/null 2>&1; then
-  echo "istioctl is required for SECOND_TASK, but it was not found in PATH." >&2
+  echo "istioctl is required, but it was not found in PATH." >&2
   echo "Install Istio CLI first: https://istio.io/latest/docs/setup/getting-started/#download" >&2
   exit 1
 fi
