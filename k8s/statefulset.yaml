@@ -19,7 +19,8 @@ spec:
           image: custom-app:latest
           imagePullPolicy: IfNotPresent
           ports:
-            - containerPort: 8080
+            - name: http
+              containerPort: 8080
           env:
             - name: CONFIG_PATH
               value: /app/config/config.json
