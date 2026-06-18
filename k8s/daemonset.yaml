@@ -1,0 +1,49 @@
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: log-agent
+  namespace: logging-system
+  labels:
+    app: log-agent
+spec:
+  selector:
+    matchLabels:
+      app: log-agent
+  template:
+    metadata:
+      labels:
+        app: log-agent
+    spec:
+      tolerations:
+        - operator: Exists
+      containers:
+        - name: log-agent
+          image: busybox:1.36
+          command:
+            - sh
+            - -c
+            - |
+              echo "Watching custom-app container logs from /var/log/pods"
+              while true; do
+                found=0
+                for file in /var/log/pods/logging-system_custom-app-*/*/*.log; do
+                  if [ -f "$file" ]; then
+                    found=1
+                    echo "===== $file ====="
+                    tail -n 50 "$file"
+                  fi
+                done
+                if [ "$found" = "0" ]; then
+                  echo "No custom-app logs found yet"
+                fi
+                sleep 10
+              done
+          volumeMounts:
+            - name: pod-logs
+              mountPath: /var/log/pods
+              readOnly: true
+      volumes:
+        - name: pod-logs
+          hostPath:
+            path: /var/log/pods
+            type: DirectoryOrCreate

@@ -1,0 +1,27 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: archive-app-logs
+  namespace: logging-system
+spec:
+  schedule: "*/10 * * * *"
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          restartPolicy: OnFailure
+          containers:
+            - name: archive-app-logs
+              image: alpine:3.20
+              command:
+                - sh
+                - -c
+                - |
+                  set -eu
+                  mkdir -p /app/logs
+                  timestamp="$(date +%Y%m%d%H%M%S)"
+                  wget -qO /app/logs/app.log http://custom-app-service.logging-system.svc.cluster.local/logs || true
+                  tar -czf "/tmp/app-logs-${timestamp}.tar.gz" /app/logs/
+                  ls -lh "/tmp/app-logs-${timestamp}.tar.gz"
